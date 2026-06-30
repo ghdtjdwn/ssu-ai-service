@@ -1,5 +1,6 @@
 import logging
 import os
+import secrets
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, status
@@ -7,7 +8,7 @@ from pydantic import BaseModel
 
 app = FastAPI(
     title="SsuAI-B2B-Model-Server",
-    description="FastAPI-based AI serving gateway for RAG embeddings and text analytics",
+    description="FastAPI-based AI serving gateway for RAG embeddings",
     version="1.1.0",
 )
 
@@ -19,13 +20,19 @@ GEMINI_API_KEY = os.getenv("SSUAI_GEMINI_API_KEY", "")
 # so an unset key fails safe instead of leaving the gateway open.
 SERVICE_API_KEY = os.getenv("SSUAI_SERVICE_API_KEY", "")
 
-EMBEDDING_MODEL = "text-embedding-004"
-EMBEDDING_DIM = 768  # MRL truncation: Gemini embeddings are Matryoshka, safe to slice.
+EMBEDDING_MODEL = "gemini-embedding-001"
+# gemini-embedding-001 is a Matryoshka (MRL) model whose vectors stay meaningful when
+# truncated, so we cap to 768 dims to match the sibling RAG store.
+EMBEDDING_DIM = 768
 
 
 def require_api_key(x_api_key: str = Header(default="")) -> None:
-    """Inbound auth gate. Fails closed when SSUAI_SERVICE_API_KEY is unset."""
-    if not SERVICE_API_KEY or x_api_key != SERVICE_API_KEY:
+    """Inbound auth gate. Fails closed when SSUAI_SERVICE_API_KEY is unset.
+
+    Uses a constant-time comparison so the check does not leak the key length or a
+    matching prefix through response timing.
+    """
+    if not SERVICE_API_KEY or not secrets.compare_digest(x_api_key, SERVICE_API_KEY):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or missing api key")
 
 
@@ -79,5 +86,11 @@ async def get_embedding(request: EmbeddingRequest):
         log.warning("gemini embeddings failed: %s %s", response.status_code, response.text[:300])
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "embedding upstream error")
 
-    embedding = response.json()["data"][0]["embedding"][:EMBEDDING_DIM]
+    try:
+        embedding = response.json()["data"][0]["embedding"][:EMBEDDING_DIM]
+    except (KeyError, IndexError, TypeError, ValueError):
+        # Malformed upstream payload — log server-side, return a generic error so the
+        # raw upstream body is never reflected to callers.
+        log.warning("gemini embeddings malformed response: %s", response.text[:300])
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "embedding upstream error")
     return EmbeddingResponse(embedding=embedding, dimension=len(embedding))
