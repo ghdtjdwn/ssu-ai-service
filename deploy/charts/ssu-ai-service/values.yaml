@@ -1,0 +1,70 @@
+namespace: ssuai-prod
+replicaCount: 1
+image:
+  repository: ghcr.io/ghdtjdwn/ssu-ai-service
+  # Placeholder tag. ArgoCD Image Updater writes the real sha-<40hex> tag back here
+  # (write-back-target: helmvalues:values.yaml). CI also publishes :latest, so this
+  # placeholder is pullable on the first sync before the sha write-back lands.
+  tag: latest
+  pullPolicy: Always
+nameOverride: ""
+fullnameOverride: ""
+# Non-secret runtime config, injected via envFrom configMapRef. This service has no
+# non-secret configuration today: the embedding model name and dimension are hardcoded
+# in app/main.py, and both credentials are secrets. The map is intentionally empty and
+# exists for parity with the sibling chart and as an anchor for the deployment's
+# checksum/config restart trigger. Add non-secret tunables here if any are introduced.
+env: {}
+secretRef:
+  enabled: true
+  name: ssu-ai-service-secrets
+  optional: true
+secretTemplate:
+  enabled: false
+  stringData:
+    SSUAI_GEMINI_API_KEY: "<replace-me>"
+    SSUAI_SERVICE_API_KEY: "<replace-me>"
+service:
+  type: ClusterIP
+  port: 8000
+ingress:
+  enabled: true
+  className: traefik
+  host: ssu-ai-service.duckdns.org
+  tlsSecretName: ssu-ai-service-duckdns-org-tls
+  clusterIssuer: letsencrypt-prod
+  middlewares:
+    redirectHttps: redirect-https
+    hsts: hsts
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+probes:
+  readiness:
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 5
+# The Dockerfile (python:3.11-alpine) installs deps under /root/.local and runs uvicorn
+# The image runs uvicorn as the non-root `app` user (Dockerfile USER app),
+# so runAsNonRoot is enforced here.
+containerSecurityContext:
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+    - ALL
+podSecurityContext:
+  terminationGracePeriodSeconds: 30

@@ -1,0 +1,45 @@
+# Production overrides for ssu-ai-service.
+#
+# image.tag is auto-updated by ArgoCD Image Updater (git write-back to values.yaml),
+# so nothing image-related belongs here.
+#
+# Secrets must be created manually (never committed):
+#   kubectl create secret generic ssu-ai-service-secrets \
+#     --namespace ssuai-prod \
+#     --from-literal=SSUAI_GEMINI_API_KEY=<gemini-api-key> \
+#     --from-literal=SSUAI_SERVICE_API_KEY=<inbound-gate-key>
+#   # SSUAI_GEMINI_API_KEY == the upstream Gemini key already stored in
+#   #   ssuai-backend-secrets (same value; the app forwards it to Gemini).
+#   # SSUAI_SERVICE_API_KEY is a NEW inbound credential callers present as X-API-Key.
+#   #   It is fail-closed: if unset, /v1/embeddings returns 401 for everyone.
+#
+# =============================================================================
+# WARNING - REVIEW BEFORE MERGE
+# =============================================================================
+# (a) MERGE ORDER - the ArgoCD app cannot sync until an image exists to pull.
+#     Merge this to `main` FIRST and wait for CI (.github/workflows/ci.yml, the
+#     `docker` job) to build + push the FIRST image
+#     (ghcr.io/ghdtjdwn/ssu-ai-service:sha-<40hex> and :latest). ONLY THEN apply the
+#     ArgoCD Application. Syncing before the first image is published yields an
+#     ImagePullBackOff because no tag exists yet.
+# (b) DNS - create an A record for ssu-ai-service.duckdns.org pointing at the k3s
+#     node's public IP (same target as the other *.duckdns.org hosts). Without it
+#     Traefik routing and the cert-manager HTTP-01 challenge both fail.
+# (c) NO CONSUMER - nothing calls this gateway in prod yet (ssuAgent / ssuMCP RAG
+#     do not depend on it). Deploying now just runs an idle pod that consumes
+#     cluster resources for no traffic. Deploy only when a consumer is ready, or
+#     accept the idle cost knowingly.
+# (d) DOCKERFILE NON-ROOT - the image runs uvicorn as root (no USER in the
+#     Dockerfile), so the chart intentionally does NOT set runAsNonRoot (forcing it
+#     would crash the pod). Decide whether to add a non-root USER to the Dockerfile
+#     and then set containerSecurityContext.runAsNonRoot: true before treating this
+#     as production-hardened.
+# =============================================================================
+
+# Ingress held OFF until the DNS A record exists: creating a NEW DuckDNS
+# subdomain (ssu-ai-service.duckdns.org) requires a web login, so until then
+# Traefik routing / cert-manager HTTP-01 would just sit failing. The service
+# stays reachable in-cluster (ClusterIP). Flip to true after creating the
+# A record -> node public IP.
+ingress:
+  enabled: false
