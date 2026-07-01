@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ssu-ai-service
+description: FastAPI B2B embedding serving gateway for the SSU AI platform
+type: application
+version: 0.1.0
+appVersion: "1.1.0"
