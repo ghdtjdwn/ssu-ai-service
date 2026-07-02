@@ -44,3 +44,12 @@ pytest -q
 ```
 
 헬스, 인바운드 키 미제시 → 401, 키 일치하지만 업스트림 미설정 → 503, 잘못된 키 → 401을 검증한다(실제 업스트림 호출 없이).
+
+## 배포 (2026-07-02 prod 라이브)
+
+k3s 클러스터(`ssuai-prod` 네임스페이스)에 GitOps로 배포되어 있다: main push → GitHub Actions가 arm64 이미지를 ghcr에 빌드/푸시 → ArgoCD Image Updater가 `sha-<hash>` 태그를 values.yaml에 되커밋 → 자동 sync.
+
+- **런타임 하드닝**: 컨테이너는 non-root(uid 10001, `runAsNonRoot` 강제), capability 전부 drop, privilege escalation 차단.
+- **시크릿**: `ssu-ai-service-secrets`(클러스터에서 수동 생성, 커밋 금지) — 키 이름은 위 환경 변수 표와 동일.
+- **노출 범위**: 현재 in-cluster ClusterIP 전용. Ingress(`ssu-ai-service.duckdns.org`)는 차트에 준비돼 있으나 DNS A 레코드 생성 전까지 `values-prod.yaml`에서 비활성 상태다.
+- 차트/ArgoCD 매니페스트: [`deploy/`](deploy/).
