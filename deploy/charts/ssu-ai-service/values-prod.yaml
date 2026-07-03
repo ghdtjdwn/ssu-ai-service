@@ -13,33 +13,9 @@
 #   # SSUAI_SERVICE_API_KEY is a NEW inbound credential callers present as X-API-Key.
 #   #   It is fail-closed: if unset, /v1/embeddings returns 401 for everyone.
 #
-# =============================================================================
-# WARNING - REVIEW BEFORE MERGE
-# =============================================================================
-# (a) MERGE ORDER - the ArgoCD app cannot sync until an image exists to pull.
-#     Merge this to `main` FIRST and wait for CI (.github/workflows/ci.yml, the
-#     `docker` job) to build + push the FIRST image
-#     (ghcr.io/hoeongj/ssu-ai-service:sha-<40hex> and :latest). ONLY THEN apply the
-#     ArgoCD Application. Syncing before the first image is published yields an
-#     ImagePullBackOff because no tag exists yet.
-# (b) DNS - create an A record for ssu-ai-service.duckdns.org pointing at the k3s
-#     node's public IP (same target as the other *.duckdns.org hosts). Without it
-#     Traefik routing and the cert-manager HTTP-01 challenge both fail.
-# (c) NO CONSUMER - nothing calls this gateway in prod yet (ssuAgent / ssuMCP RAG
-#     do not depend on it). Deploying now just runs an idle pod that consumes
-#     cluster resources for no traffic. Deploy only when a consumer is ready, or
-#     accept the idle cost knowingly.
-# (d) DOCKERFILE NON-ROOT - the image runs uvicorn as root (no USER in the
-#     Dockerfile), so the chart intentionally does NOT set runAsNonRoot (forcing it
-#     would crash the pod). Decide whether to add a non-root USER to the Dockerfile
-#     and then set containerSecurityContext.runAsNonRoot: true before treating this
-#     as production-hardened.
-# =============================================================================
-
-# Ingress held OFF until the DNS A record exists: creating a NEW DuckDNS
-# subdomain (ssu-ai-service.duckdns.org) requires a web login, so until then
-# Traefik routing / cert-manager HTTP-01 would just sit failing. The service
-# stays reachable in-cluster (ClusterIP). Flip to true after creating the
-# A record -> node public IP.
+# Ingress ON since 2026-07-03: the DuckDNS A record
+# (ssu-ai-service.duckdns.org -> k3s node public IP) exists, so Traefik routes
+# the host and cert-manager issues the Let's Encrypt cert via HTTP-01.
+# Host/TLS/middleware settings come from values.yaml defaults.
 ingress:
-  enabled: false
+  enabled: true
