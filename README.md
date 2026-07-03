@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/ghdtjdwn/ssu-ai-service/actions/workflows/ci.yml/badge.svg)](https://github.com/ghdtjdwn/ssu-ai-service/actions/workflows/ci.yml)
 
+> 🇺🇸 English version: [README.en.md](README.en.md)
+
 숭실대학교 AI 플랫폼의 **B2B 임베딩 서빙 게이트웨이**. FastAPI로 텍스트 임베딩(Gemini `gemini-embedding-001`, Matryoshka 768차원)을 단일 엔드포인트로 노출한다. ssuMCP/ssuAI 본체와 분리된 독립 서비스로, "모델 서빙 표면을 따로 둘 때의 인증·키 위생 설계"를 증명하는 포트폴리오 조각이다.
 
 ## 엔드포인트
