@@ -1,15 +1,28 @@
 import logging
 import os
 import secrets
+from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from pydantic import BaseModel
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # One shared AsyncClient for the process lifetime so requests reuse pooled
+    # keep-alive TCP/TLS connections to the upstream instead of paying a full
+    # connect + TLS handshake on every embedding call.
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        app.state.http_client = client
+        yield
+
 
 app = FastAPI(
     title="SsuAI-B2B-Model-Server",
     description="FastAPI-based AI serving gateway for RAG embeddings",
     version="1.1.0",
+    lifespan=lifespan,
 )
 
 log = logging.getLogger("uvicorn.error")
@@ -56,7 +69,7 @@ def health_check():
     response_model=EmbeddingResponse,
     dependencies=[Depends(require_api_key)],
 )
-async def get_embedding(request: EmbeddingRequest):
+async def get_embedding(request: EmbeddingRequest, raw_request: Request):
     if not GEMINI_API_KEY:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "embedding upstream not configured"
@@ -71,9 +84,9 @@ async def get_embedding(request: EmbeddingRequest):
     }
     payload = {"input": request.text, "model": EMBEDDING_MODEL}
 
+    client: httpx.AsyncClient = raw_request.app.state.http_client
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload, headers=headers, timeout=10.0)
+        response = await client.post(url, json=payload, headers=headers)
     except httpx.RequestError:
         # Do not echo the exception (may carry the upstream URL/host).
         raise HTTPException(
