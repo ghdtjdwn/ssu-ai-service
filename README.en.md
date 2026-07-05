@@ -45,7 +45,7 @@ pip install -r requirements-dev.txt
 pytest -q
 ```
 
-Covers: health check, missing inbound key → 401, matching key with upstream unconfigured → 503, wrong key → 401 — all without calling the real upstream.
+Covers 7 cases (real upstream mocked): health check, missing inbound key → 401, wrong key → 401, **non-ASCII key → 401** (the latin-1/UTF-8 compare trap), matching key with upstream unconfigured → 503, **the happy path capping the vector to 768 dims (Matryoshka truncation) end-to-end**, and a malformed upstream response → 502 (no internals leaked).
 
 ## Deployment (live in prod since 2026-07-02)
 
@@ -53,5 +53,5 @@ Deployed to a k3s cluster (`ssuai-prod` namespace) via GitOps: push to main → 
 
 - **Runtime hardening**: the container runs as non-root (uid 10001, `runAsNonRoot` enforced), drops all capabilities, and blocks privilege escalation.
 - **Secrets**: `ssu-ai-service-secrets` (created manually in the cluster, never committed) — key names match the environment variable table above.
-- **Exposure**: currently in-cluster ClusterIP only. An Ingress (`ssu-ai-service.duckdns.org`) is prepared in the chart but remains disabled in `values-prod.yaml` until the DNS A record is created.
+- **Exposure**: publicly live — **<https://ssu-ai-service.duckdns.org>** (Let's Encrypt TLS). Unauthenticated calls fail closed with 401. Health: `curl https://ssu-ai-service.duckdns.org/health` → `{"status":"healthy",...}`.
 - Chart / ArgoCD manifests: [`deploy/`](deploy/).
