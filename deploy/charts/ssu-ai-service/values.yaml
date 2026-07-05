@@ -56,8 +56,8 @@ probes:
     periodSeconds: 30
     timeoutSeconds: 5
     failureThreshold: 5
-# The Dockerfile (python:3.11-alpine) installs deps under /root/.local and runs uvicorn
-# The image runs uvicorn as the non-root `app` user (Dockerfile USER app),
+# The multi-stage Dockerfile (python:3.11-alpine) installs deps to /install and
+# copies them to /usr/local, then runs uvicorn as the non-root `app` user (USER app),
 # so runAsNonRoot is enforced here.
 containerSecurityContext:
   runAsNonRoot: true
