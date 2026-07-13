@@ -1,7 +1,7 @@
 namespace: ssuai-prod
 replicaCount: 1
 image:
-  repository: ghcr.io/hoeongj/ssu-ai-service
+  repository: ghcr.io/ghdtjdwn/ssu-ai-service
   # Placeholder tag. ArgoCD Image Updater writes the real sha-<40hex> tag back here
   # (write-back-target: helmvalues:values.yaml). CI also publishes :latest, so this
   # placeholder is pullable on the first sync before the sha write-back lands.

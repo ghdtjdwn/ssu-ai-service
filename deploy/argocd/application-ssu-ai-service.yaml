@@ -4,7 +4,7 @@ metadata:
   name: ssu-ai-service
   namespace: argocd
   annotations:
-    argocd-image-updater.argoproj.io/image-list: "svc=ghcr.io/hoeongj/ssu-ai-service"
+    argocd-image-updater.argoproj.io/image-list: "svc=ghcr.io/ghdtjdwn/ssu-ai-service"
     argocd-image-updater.argoproj.io/svc.update-strategy: "newest-build"
     argocd-image-updater.argoproj.io/svc.allow-tags: "regexp:^sha-[0-9a-f]{40}$"
     argocd-image-updater.argoproj.io/svc.helm.image-name: "image.repository"
@@ -15,7 +15,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/hoeongj/ssu-ai-service.git
+    repoURL: https://github.com/ghdtjdwn/ssu-ai-service.git
     targetRevision: main
     path: deploy/charts/ssu-ai-service
     helm:

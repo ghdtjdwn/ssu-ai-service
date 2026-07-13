@@ -1,10 +1,10 @@
 # ssu-ai-service
 
-[![CI](https://github.com/hoeongj/ssu-ai-service/actions/workflows/ci.yml/badge.svg)](https://github.com/hoeongj/ssu-ai-service/actions/workflows/ci.yml)
+[![CI](https://github.com/ghdtjdwn/ssu-ai-service/actions/workflows/ci.yml/badge.svg)](https://github.com/ghdtjdwn/ssu-ai-service/actions/workflows/ci.yml)
 
 **한국어** [README.md](README.md) · **English** (this document)
 
-> 🧩 **Soongsil Campus AI Platform** (1 of 4 services) · [ssuMCP](https://github.com/hoeongj/ssuMCP) · [ssuAI](https://github.com/hoeongj/ssuAI) · [ssuAgent](https://github.com/hoeongj/ssuAgent) · **ssu-ai-service** · 🟢 [Live](https://ssuai.vercel.app)
+> 🧩 **Soongsil Campus AI Platform** (1 of 4 services) · [ssuMCP](https://github.com/ghdtjdwn/ssuMCP) · [ssuAI](https://github.com/ghdtjdwn/ssuAI) · [ssuAgent](https://github.com/ghdtjdwn/ssuAgent) · **ssu-ai-service** · 🟢 [Live](https://ssuai.vercel.app)
 
 A **B2B embedding serving gateway** for the Soongsil University AI platform. It exposes text embeddings (Gemini `gemini-embedding-001`, Matryoshka 768 dimensions) through a single FastAPI endpoint. It runs as an independent service, decoupled from the ssuMCP/ssuAI core — a portfolio piece demonstrating how to design authentication and key hygiene when the model-serving surface lives in its own service.
 
