@@ -9,16 +9,17 @@ image:
   pullPolicy: Always
 nameOverride: ""
 fullnameOverride: ""
-# Non-secret runtime config, injected via envFrom configMapRef. This service has no
-# non-secret configuration today: the embedding model name and dimension are hardcoded
-# in app/main.py, and both credentials are secrets. The map is intentionally empty and
-# exists for parity with the sibling chart and as an anchor for the deployment's
-# checksum/config restart trigger. Add non-secret tunables here if any are introduced.
-env: {}
+# Non-secret request-protection settings. Keep these positive integers: invalid values
+# make /ready fail closed while the process remains live for diagnosis.
+env:
+  SSUAI_MAX_TEXT_LENGTH: "8000"
+  SSUAI_RATE_LIMIT_REQUESTS: "60"
+  SSUAI_RATE_LIMIT_WINDOW_SECONDS: "60"
+  SSUAI_MAX_CONCURRENT_REQUESTS: "4"
 secretRef:
   enabled: true
   name: ssu-ai-service-secrets
-  optional: true
+  optional: false
 secretTemplate:
   enabled: false
   stringData:
@@ -45,7 +46,7 @@ resources:
     memory: 256Mi
 probes:
   readiness:
-    path: /health
+    path: /ready
     initialDelaySeconds: 10
     periodSeconds: 5
     timeoutSeconds: 3
@@ -56,7 +57,7 @@ probes:
     periodSeconds: 30
     timeoutSeconds: 5
     failureThreshold: 5
-# The multi-stage Dockerfile (python:3.11-alpine) installs deps to /install and
+# The multi-stage Dockerfile uses a digest-pinned Python 3.11 Alpine image and
 # copies them to /usr/local, then runs uvicorn as the non-root `app` user (USER app),
 # so runAsNonRoot is enforced here.
 containerSecurityContext:
