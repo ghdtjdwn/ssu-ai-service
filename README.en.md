@@ -22,7 +22,7 @@ The initial security flaws were corrected in place and explicit request-protecti
 
 1. **Upstream key moved from URL query string to header** — the Gemini key used to be sent as `?key=...`, risking plaintext exposure in access logs and proxies. It is now sent via the `Authorization: Bearer` header.
 2. **Inbound auth gate (fail-closed)** — `/v1/embeddings` requires `X-API-Key` to match `SSUAI_SERVICE_API_KEY`. If the key is **unset, the gate closes with 401 instead of staying open**, shutting down a surface anyone could have called to burn LLM spend. Same principle as the `AGENT_API_KEY` gate on ssuAgent's `/agent`.
-3. **No upstream error reflection** — the Gemini response body used to be echoed back to the caller verbatim. Upstream details now go **to server logs only**, and callers receive a generalized message (e.g. `502 embedding upstream error`).
+3. **No upstream error reflection or body logging** — the Gemini response body used to be echoed back to the caller verbatim. Raw bodies now stay out of both responses and application logs; only the status code or malformed-shape signal is logged, and callers receive a generalized message (e.g. `502 embedding upstream error`).
 4. **Input boundary** — whitespace-only input is rejected and text is capped at 8,000 characters by default. This is a front-door safeguard informed by the current 2,048-token limit of `gemini-embedding-001` and the memory/cost risk of unbounded bodies.
 5. **Per-key usage limits** — a process-local sliding window allows 60 requests per minute and 4 concurrent requests by default. Limiter state stores a SHA-256 identifier instead of the API key and returns 429 when a limit is exceeded.
 6. **Separate liveness and readiness** — `/health` reports process liveness; `/ready` checks both required keys and protection settings. Readiness never calls Gemini, so probes neither spend quota nor propagate transient upstream failures.
@@ -59,12 +59,13 @@ pytest -q
 
 Covers 16 cases with the real upstream mocked, including separate liveness/readiness with no upstream probe, fail-closed authentication, empty/oversized input, per-key rate and concurrency limits, the 768-dimensional happy path, and non-reflecting upstream failures.
 
-## Deployment (live in prod since 2026-07-02)
+## Deployment (live since 2026-07-02, hardened 2026-07-15)
 
 Deployed to a k3s cluster (`ssuai-prod` namespace) via GitOps: push to main → GitHub Actions builds and pushes an arm64 image to ghcr → ArgoCD Image Updater commits the `sha-<hash>` tag back into values.yaml → auto sync.
 
 - **Runtime hardening**: the container runs as non-root (uid 10001, `runAsNonRoot` enforced), drops all capabilities, and blocks privilege escalation.
 - **Secrets**: `ssu-ai-service-secrets` (created manually in the cluster, never committed) is a required reference. A missing Secret prevents the Pod from starting; key names match the environment variable table above.
-- **Reproducible supply chain**: runtime/dev Python dependencies use exact versions, the official Python base image uses a digest, and GitHub Actions use full commit SHAs.
+- **Reproducible supply chain**: runtime/dev Python dependencies use exact versions, the official Python base image uses a digest, and GitHub Actions pin Node.js 24-based majors by full commit SHA.
 - **Exposure**: publicly live — **<https://ssu-ai-service.duckdns.org>** (Let's Encrypt TLS). Unauthenticated calls fail closed with 401. Health: `curl https://ssu-ai-service.duckdns.org/health` → `{"status":"healthy","gemini_configured":true}`.
 - Chart / ArgoCD manifests: [`deploy/`](deploy/).
+- Deployment failure analysis and recovery: [`docs/deployment-troubleshooting.md`](docs/deployment-troubleshooting.md).

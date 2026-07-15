@@ -22,7 +22,7 @@
 
 1. **업스트림 키를 URL 쿼리스트링에서 헤더로 이동** — 기존에는 Gemini 키를 `?key=...`로 보내 액세스 로그·프록시에 평문 노출 위험이 있었다. 이제 `Authorization: Bearer` 헤더로 전송한다.
 2. **인바운드 인증 게이트(fail-closed)** — `/v1/embeddings`는 `X-API-Key`가 `SSUAI_SERVICE_API_KEY`와 일치해야 한다. 키가 **미설정이면 열어두는 게 아니라 401로 닫는다**(누구나 호출해 LLM 비용을 소진하던 표면 차단). cf. ssuAgent `/agent`의 `AGENT_API_KEY` 게이트와 같은 원칙.
-3. **업스트림 에러 비반사** — 기존에는 Gemini 응답 본문을 그대로 호출자에게 되돌려줬다. 이제 업스트림 상세는 **서버 로그에만** 남기고, 호출자에게는 일반화된 메시지(`502 embedding upstream error` 등)만 반환한다.
+3. **업스트림 에러 비반사·비로깅** — 기존에는 Gemini 응답 본문을 그대로 호출자에게 되돌려줬다. 이제 원문은 응답과 애플리케이션 로그 양쪽에 남기지 않고 상태 코드나 malformed 신호만 기록하며, 호출자에게는 일반화된 메시지(`502 embedding upstream error` 등)만 반환한다.
 4. **입력 경계** — 공백뿐인 입력을 거부하고 기본 8,000자 상한을 적용한다. 현재 `gemini-embedding-001`의 2,048-token 한도와 무제한 요청 본문에 따른 메모리·비용 위험을 함께 고려한 전단 보호다.
 5. **키별 사용량 제한** — 프로세스별 sliding window로 기본 분당 60회, 동시 4회를 허용한다. 제한 상태에는 API 키 원문이 아니라 SHA-256 식별자만 보관하고 초과 시 429를 반환한다.
 6. **liveness/readiness 분리** — `/health`는 프로세스 생존만, `/ready`는 두 필수 키와 보호 설정을 검사한다. readiness는 Gemini를 호출하지 않아 프로브가 비용이나 외부 장애 전파를 만들지 않는다.
@@ -59,12 +59,13 @@ pytest -q
 
 16개 케이스를 검증한다(실제 업스트림은 목킹): liveness/readiness 분리와 무업스트림 프로브, 인증 fail-closed, 빈 입력·길이 상한, 키별 rate/concurrency 제한, 정상 768차원 응답, 업스트림 오류 비반사를 포함한다.
 
-## 배포 (2026-07-02 prod 라이브)
+## 배포 (2026-07-02 prod 라이브, 2026-07-15 하드닝)
 
 k3s 클러스터(`ssuai-prod` 네임스페이스)에 GitOps로 배포되어 있다: main push → GitHub Actions가 arm64 이미지를 ghcr에 빌드/푸시 → ArgoCD Image Updater가 `sha-<hash>` 태그를 values.yaml에 되커밋 → 자동 sync.
 
 - **런타임 하드닝**: 컨테이너는 non-root(uid 10001, `runAsNonRoot` 강제), capability 전부 drop, privilege escalation 차단.
 - **시크릿**: `ssu-ai-service-secrets`(클러스터에서 수동 생성, 커밋 금지)는 필수 참조다. 누락 시 Pod가 시작되지 않으며 키 이름은 위 환경 변수 표와 동일하다.
-- **재현 가능한 공급망**: runtime/dev Python 의존성은 exact version, Python base image는 official image digest, GitHub Actions는 full commit SHA로 고정한다.
+- **재현 가능한 공급망**: runtime/dev Python 의존성은 exact version, Python base image는 official image digest, GitHub Actions는 Node.js 24 기반 major의 full commit SHA로 고정한다.
 - **노출 범위**: 외부 공개 라이브 — **<https://ssu-ai-service.duckdns.org>** (Let's Encrypt TLS). 인증 없는 호출은 fail-closed로 401. 헬스: `curl https://ssu-ai-service.duckdns.org/health` → `{"status":"healthy","gemini_configured":true}`.
 - 차트/ArgoCD 매니페스트: [`deploy/`](deploy/).
+- 배포 장애 분석과 복구 절차: [`docs/deployment-troubleshooting.md`](docs/deployment-troubleshooting.md).
