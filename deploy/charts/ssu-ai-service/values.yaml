@@ -19,6 +19,8 @@ env:
 secretRef:
   enabled: true
   name: ssu-ai-service-secrets
+  # Increment with an externally managed Secret rotation so envFrom values are reloaded.
+  revision: "1"
   optional: false
 secretTemplate:
   enabled: false

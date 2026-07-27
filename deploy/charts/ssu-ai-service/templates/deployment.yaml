@@ -21,6 +21,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret-revision: {{ .Values.secretRef.revision | quote }}
       labels:
         {{- include "ssu-ai-service.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/part-of: ssuai
