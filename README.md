@@ -104,6 +104,7 @@ capability drop, privilege-escalation 차단, seccomp 설정으로 실행된다.
 
 - Helm chart와 ArgoCD Application: [`deploy/`](deploy/)
 - production 절차와 실패 분석: [`docs/deployment-troubleshooting.md`](docs/deployment-troubleshooting.md)
+- 비공개 취약점 제보 범위와 절차: [`.github/SECURITY.md`](.github/SECURITY.md)
 
 실제 Secret 교체, pod 재시작, rollout은 production 변경이므로 승인된 운영 절차에서만 수행한다.
 

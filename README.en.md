@@ -106,6 +106,7 @@ container runs non-root with dropped capabilities, blocked privilege escalation,
 
 - Helm chart and ArgoCD Application: [`deploy/`](deploy/)
 - Production procedure and failure analysis: [`docs/deployment-troubleshooting.md`](docs/deployment-troubleshooting.md)
+- Private vulnerability reporting scope and process: [`.github/SECURITY.md`](.github/SECURITY.md)
 
 Secret rotation, pod restarts, and rollouts are production changes and require the approved
 operations procedure.
