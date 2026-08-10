@@ -1,8 +1,8 @@
 -r requirements.txt
 iniconfig==2.3.0
-httpcore2==2.7.0
-httpx2==2.7.0
-packaging==26.2
+httpcore2==2.9.1
+httpx2==2.9.1
+packaging==26.3
 pluggy==1.6.0
 Pygments==2.20.0
 pytest==9.1.1
