@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import logging
 import os
 import secrets
@@ -117,6 +116,10 @@ GEMINI_API_KEY = os.getenv("SSUAI_GEMINI_API_KEY", "")
 # Inbound credential — callers must present this as X-API-Key. Empty => closed (401),
 # so an unset key fails safe instead of leaving the gateway open.
 SERVICE_API_KEY = os.getenv("SSUAI_SERVICE_API_KEY", "")
+# The service accepts one configured inbound credential, so every authenticated
+# request belongs to the same process-local usage bucket. Keeping a fixed opaque
+# identifier avoids retaining or transforming credential material in limiter state.
+AUTHENTICATED_USAGE_KEY = b"authenticated-service"
 
 EMBEDDING_MODEL = "gemini-embedding-001"
 # gemini-embedding-001 is a Matryoshka (MRL) model whose vectors stay meaningful when
@@ -137,8 +140,7 @@ def require_api_key(x_api_key: str = Header(default="")) -> bytes:
         x_api_key.encode("utf-8"), SERVICE_API_KEY.encode("utf-8")
     ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or missing api key")
-    # Keep only an irreversible identifier in limiter state, never the credential.
-    return hashlib.sha256(x_api_key.encode("utf-8")).digest()
+    return AUTHENTICATED_USAGE_KEY
 
 
 async def enforce_usage_limits(
