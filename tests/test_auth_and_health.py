@@ -168,6 +168,13 @@ def test_embeddings_non_ascii_key_rejected_cleanly(monkeypatch):
     assert response.status_code == 401
 
 
+def test_authenticated_key_maps_to_fixed_noncredential_usage_bucket(monkeypatch):
+    monkeypatch.setattr(main, "SERVICE_API_KEY", "correct-key")
+
+    assert main.require_api_key("correct-key") == main.AUTHENTICATED_USAGE_KEY
+    assert b"correct-key" not in main.AUTHENTICATED_USAGE_KEY
+
+
 def test_embeddings_happy_path_returns_capped_vector(monkeypatch):
     # Inbound auth + upstream both configured; upstream returns a long vector that the
     # gateway caps to EMBEDDING_DIM before returning.
@@ -185,7 +192,7 @@ def test_embeddings_happy_path_returns_capped_vector(monkeypatch):
     assert len(body["embedding"]) == main.EMBEDDING_DIM
 
 
-def test_embeddings_rate_limit_is_per_key_and_returns_retry_after(monkeypatch):
+def test_embeddings_rate_limit_is_per_service_and_returns_retry_after(monkeypatch):
     monkeypatch.setattr(main, "RATE_LIMIT_REQUESTS", 2)
     monkeypatch.setattr(main, "RATE_LIMIT_WINDOW_SECONDS", 30)
     _patch_upstream(monkeypatch, _FakeResponse(200, {"data": [{"embedding": [1.0]}]}))
