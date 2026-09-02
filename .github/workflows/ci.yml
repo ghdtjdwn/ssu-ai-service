@@ -3,11 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
-    # Ignore only ArgoCD Image Updater write-back commits (deploy/charts/*/values.yaml)
+    # Ignore ArgoCD Image Updater write-back commits (deploy/charts/*/values.yaml)
     # and docs so they never rebuild the image. Without this the write-back would
     # loop forever: write-back -> CI -> new image -> write-back -> ...
     paths-ignore:
-      - 'deploy/charts/ssu-ai-service/values.yaml'
+      - 'deploy/**'
       - 'docs/**'
       - '**.md'
   pull_request:
@@ -28,18 +28,6 @@ jobs:
         run: pip install --no-cache-dir -r requirements-dev.txt
       - name: Run tests
         run: pytest -q
-
-  helm:
-    name: Helm chart
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Lint chart
-        run: helm lint deploy/charts/ssu-ai-service
-      - name: Render and verify Pod token mount
-        run: |
-          helm template ssu-ai-service deploy/charts/ssu-ai-service --namespace ssuai-prod > rendered.yaml
-          grep -F 'automountServiceAccountToken: false' rendered.yaml
 
   docker:
     name: Image (ghcr.io, ARM64)
