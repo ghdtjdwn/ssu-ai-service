@@ -26,6 +26,7 @@ spec:
         {{- include "ssu-ai-service.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/part-of: ssuai
     spec:
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.podSecurityContext.terminationGracePeriodSeconds }}
       securityContext:
         seccompProfile:

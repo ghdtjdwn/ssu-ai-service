@@ -1,0 +1,40 @@
+name: Helm chart
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/charts/ssu-ai-service/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deploy/charts/ssu-ai-service/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, render, and verify Pod token mount
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Lint chart
+        run: helm lint deploy/charts/ssu-ai-service
+      - name: Render and verify Pod token mount
+        run: |
+          helm template ssu-ai-service deploy/charts/ssu-ai-service --namespace ssuai-prod > rendered.yaml
+          ruby -ryaml - <<'RUBY'
+          documents = YAML.load_stream(File.read("rendered.yaml"))
+          deployment = documents.find do |document|
+            document.is_a?(Hash) &&
+              document["apiVersion"] == "apps/v1" &&
+              document["kind"] == "Deployment" &&
+              document.dig("metadata", "name") == "ssu-ai-service"
+          end
+          abort("ssu-ai-service Deployment not found") unless deployment
+
+          value = deployment.dig("spec", "template", "spec", "automountServiceAccountToken")
+          abort("automountServiceAccountToken must be boolean false, got #{value.inspect}") unless value == false
+          RUBY
