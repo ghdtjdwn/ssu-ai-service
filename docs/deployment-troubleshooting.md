@@ -69,15 +69,14 @@ The runtime stage now consumes the commit SHA through a build argument in an exe
 
 ### Validation and regression prevention
 
-Validation requires all of the following before the incident is closed:
-
-- CI tests and the ARM64 image build succeed.
-- The new image config has the expected revision label and a creation time later than `cb2b9bf`.
-- Image Updater writes the new SHA tag to `deploy/charts/ssu-ai-service/values.yaml`.
-- ArgoCD completes the rollout and both `/health` and `/ready` return 200.
+- PR #24 passed pytest, dependency audit, CodeQL, and secret scanning.
+- Main CI run `33667124983` passed pytest and published the ARM64 image for `95eb049`.
+- The published image records revision `95eb0490aa29006a312d6a7b0390d5b98d7503b8` and `Created=2026-09-02T18:26:15.154835501Z`, later than the cached `cb2b9bf` timestamp.
+- Image Updater selected the new tag and wrote it to the Helm values as `b0bdd2560951878d3e91a9e4574402ce9dd66e53`; the follow-up Helm, CodeQL, and security checks passed.
+- Three consecutive public probes returned 200 from both `/health` and `/ready`.
 
 Future deployment verification must compare the image config creation time as well as the tag and registry publication time. A green image-publish job alone does not prove that a `newest-build` rollout candidate can be ordered.
 
 ### Remaining risk and review questions
 
-Image Updater still depends on registry metadata and its polling loop; the Git write-back remains the authoritative signal that a revision was selected. During an operational review, verify why a changed OCI label did not change the image build timestamp, why a Git SHA cannot use alphabetical ordering, and how a commit-scoped cache-busting step preserves most BuildKit cache value.
+Image Updater still depends on registry metadata and its polling loop; the Git write-back remains the authoritative signal that a revision was selected. This verification environment had no production cluster context, so the running pod image and ArgoCD `Synced/Healthy` state were not observed directly. During an operational review, verify why a changed OCI label did not change the image build timestamp, why a Git SHA cannot use alphabetical ordering, and how a commit-scoped cache-busting step preserves most BuildKit cache value.
