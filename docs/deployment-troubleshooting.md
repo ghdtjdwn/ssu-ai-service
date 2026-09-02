@@ -40,9 +40,3 @@ Repository redirects are sufficient for ArgoCD source fetches but do not rewrite
 The Application manifest is the source of truth and now carries the current owner in both `repoURL` and image-list. Deployment verification must inspect the running image tag, not only ArgoCD sync status. A readiness-path change should be released with its supporting image available before considering the rollout complete.
 
 The rate and concurrency limiter remains process-local. That is service-wide while production has one replica; horizontal scaling requires a shared limiter such as Redis.
-
-### Interview prompts
-
-- Why did Git source sync work while image discovery failed? GitHub redirected the repository URL, but GHCR image names are independent immutable coordinates.
-- Why did the rollout not recover immediately after Image Updater wrote the new tag? The prior Argo operation was still waiting for an impossible old-image readiness condition, so it had to be terminated before the latest revision could reconcile.
-- How was downtime avoided? RollingUpdate retained the previous Ready pod until the corrected image passed `/ready`.
