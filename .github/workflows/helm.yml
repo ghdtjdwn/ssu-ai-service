@@ -5,12 +5,10 @@ on:
     branches: [main]
     paths:
       - 'deploy/charts/ssu-ai-service/**'
-      - '!deploy/charts/ssu-ai-service/values.yaml'
   pull_request:
     branches: [main]
     paths:
       - 'deploy/charts/ssu-ai-service/**'
-      - '!deploy/charts/ssu-ai-service/values.yaml'
   workflow_dispatch:
 
 permissions:
