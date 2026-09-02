@@ -14,6 +14,13 @@ RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
 COPY --from=builder /install /usr/local
 COPY app/ ./app/
 
+# Argo CD Image Updater's newest-build strategy compares the image config
+# creation time. Consume the commit SHA in a real instruction so BuildKit cannot
+# reuse a stale final timestamp when every application layer is cached.
+ARG VCS_REF
+RUN test -n "$VCS_REF"
+LABEL org.opencontainers.image.revision="$VCS_REF"
+
 ENV PYTHONUNBUFFERED=1
 
 USER app

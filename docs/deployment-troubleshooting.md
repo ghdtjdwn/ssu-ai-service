@@ -40,3 +40,44 @@ Repository redirects are sufficient for ArgoCD source fetches but do not rewrite
 The Application manifest is the source of truth and now carries the current owner in both `repoURL` and image-list. Deployment verification must inspect the running image tag, not only ArgoCD sync status. A readiness-path change should be released with its supporting image available before considering the rollout complete.
 
 The rate and concurrency limiter remains process-local. That is service-wide while production has one replica; horizontal scaling requires a shared limiter such as Redis.
+
+## 2026-09-03: cached image timestamp stalled an automated rollout
+
+### Context, expected behavior, and impact
+
+After the GitHub Actions dependency update at `ad0c810`, CI and the ARM64 image publication succeeded. The expected next step was an Image Updater write-back from `sha-cb2b9bf9e44ef4c6404acacc69957cfebd992726` to `sha-ad0c810f3c5149c2091a01daaa0aad4db0f0cca3` within the configured two-minute interval.
+
+The write-back did not occur. Production remained healthy on the preceding `cb2b9bf` image, so there was no external outage, but the new revision was not deployed and the delivery pipeline was no longer advancing automatically.
+
+### Reproduction and evidence
+
+1. Publish two different commit-SHA tags while all Dockerfile application layers are cache hits.
+2. Inspect both image configs rather than only their registry push times or OCI labels.
+3. Observe that the revision labels differ but the image config `Created` values are identical.
+
+For `cb2b9bf` and `ad0c810`, GHCR recorded distinct publication times and distinct `org.opencontainers.image.revision` labels. Both image configs nevertheless reported `Created=2026-09-02T14:33:14.388763412Z`. The `ad0c810` tag was available and `latest` pointed to it, while the Helm value and main branch remained on `cb2b9bf` for more than ten Image Updater intervals.
+
+### Root cause and alternatives
+
+The `newest-build` strategy compares image build timestamps. BuildKit reused the final cached application layer, so the image config retained its earlier creation time even though metadata labels and registry tags were new. With equal build timestamps, Image Updater could not order the immutable SHA tags reliably.
+
+Changing to an alphabetical strategy was rejected because Git SHAs do not sort chronologically. A mutable deployment tag was rejected because it would weaken revision traceability. Disabling the entire build cache would refresh the timestamp but would make every release slower and more expensive.
+
+### Resolution
+
+The runtime stage now consumes the commit SHA through a build argument in an executed Dockerfile instruction and records the same value as the OCI revision label. Each commit therefore invalidates only the final lightweight step, preserving dependency and application-layer cache reuse while producing an orderable image creation time. The existing immutable `sha-<40-hex>` tags and `newest-build` strategy remain unchanged.
+
+### Validation and regression prevention
+
+Validation requires all of the following before the incident is closed:
+
+- CI tests and the ARM64 image build succeed.
+- The new image config has the expected revision label and a creation time later than `cb2b9bf`.
+- Image Updater writes the new SHA tag to `deploy/charts/ssu-ai-service/values.yaml`.
+- ArgoCD completes the rollout and both `/health` and `/ready` return 200.
+
+Future deployment verification must compare the image config creation time as well as the tag and registry publication time. A green image-publish job alone does not prove that a `newest-build` rollout candidate can be ordered.
+
+### Remaining risk and review questions
+
+Image Updater still depends on registry metadata and its polling loop; the Git write-back remains the authoritative signal that a revision was selected. During an operational review, verify why a changed OCI label did not change the image build timestamp, why a Git SHA cannot use alphabetical ordering, and how a commit-scoped cache-busting step preserves most BuildKit cache value.
