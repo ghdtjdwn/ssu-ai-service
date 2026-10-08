@@ -5,7 +5,7 @@ image:
   # Placeholder tag. ArgoCD Image Updater writes the real sha-<40hex> tag back here
   # (write-back-target: helmvalues:values.yaml). CI also publishes :latest, so this
   # placeholder is pullable on the first sync before the sha write-back lands.
-  tag: sha-a1135a3bd37eb15dc4d4dd183203870d7ca446bc
+  tag: sha-7cf46cc75643257443f2388db3ec409d5b355e37
   pullPolicy: Always
 nameOverride: ""
 fullnameOverride: ""
