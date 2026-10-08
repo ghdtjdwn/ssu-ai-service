@@ -15,7 +15,8 @@ Gemini `gemini-embedding-001`을 768차원 텍스트 임베딩 API로 노출하�
 
 ## 서비스 경계
 
-`ssu-ai-service`는 독립적으로 호출할 수 있는 B2B embedding API다. 현재 ssuAI의 핵심 chat 요청 경로는
+`ssu-ai-service`는 공유 service key 하나로 보호되는 단일 엔드포인트 embedding 프록시다. 호출자별 key, 쿼터,
+사용량 계측은 없다. 현재 ssuAI의 핵심 chat 요청 경로는
 `ssuAgent → ssuMCP`이며 이 서비스에 의존하지 않는다. 따라서 이 서비스 장애가 campus chat 전체 장애로
 전파되지는 않는다. production 요청은 실제 Gemini API를 사용하고, 테스트만 네트워크·과금 없이 계약을
 검증하기 위해 HTTP transport double을 사용한다.
@@ -23,7 +24,7 @@ Gemini `gemini-embedding-001`을 768차원 텍스트 임베딩 API로 노출하�
 ```text
 authorized caller
   → X-API-Key gate
-  → per-key request and concurrency guard
+  → service-wide request and concurrency guard
   → FastAPI validation
   → Gemini embeddings API
   → bounded 768-dimensional response
@@ -52,7 +53,8 @@ curl https://ssu-ai-service.duckdns.org/v1/embeddings \
 - inbound key가 없거나 다르면 401이며, 서비스 key가 설정되지 않은 상태도 fail-closed다.
 - Gemini key는 URL이 아니라 `Authorization` header로만 전달한다.
 - 공백 입력을 거부하고 기본 8,000자 상한을 적용한다.
-- API key별 sliding window는 기본 60회/분, 동시 요청은 4개다. limiter에는 SHA-256 식별자만 남긴다.
+- sliding window는 기본 60회/분, 동시 요청은 4개다. inbound key가 하나이므로 이 한도는 서비스 전체에 적용된다.
+  limiter는 key 값이나 그 해시를 보관하지 않고 고정 식별자 하나를 쓴다.
 - Gemini 원문 오류와 응답 body는 caller나 로그에 반사하지 않는다.
 - `/health`와 `/ready`는 비용이 드는 upstream probe를 수행하지 않는다.
 - runtime/dev dependency는 exact version이며, Dependabot·pip-audit·Gitleaks·CodeQL을 CI에서 실행한다.
@@ -69,9 +71,9 @@ curl https://ssu-ai-service.duckdns.org/v1/embeddings \
 | `SSUAI_GEMINI_API_KEY` | 없음 | Gemini upstream credential. 필수 |
 | `SSUAI_SERVICE_API_KEY` | 없음 | caller가 `X-API-Key`로 제시하는 credential. 필수 |
 | `SSUAI_MAX_TEXT_LENGTH` | `8000` | 입력 문자 수 상한 |
-| `SSUAI_RATE_LIMIT_REQUESTS` | `60` | window당 key별 요청 수 |
+| `SSUAI_RATE_LIMIT_REQUESTS` | `60` | window당 서비스 전체 요청 수 |
 | `SSUAI_RATE_LIMIT_WINDOW_SECONDS` | `60` | limiter window 길이 |
-| `SSUAI_MAX_CONCURRENT_REQUESTS` | `4` | key별 동시 요청 수 |
+| `SSUAI_MAX_CONCURRENT_REQUESTS` | `4` | 서비스 전체 동시 요청 수 |
 
 보호 설정이 정수가 아니거나 0 이하이면 안전한 기본값으로 동작하지만 `/ready`는 503을 반환해 잘못된
 배포를 traffic에서 제외한다.

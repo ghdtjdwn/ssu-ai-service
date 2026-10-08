@@ -23,7 +23,7 @@ code and deployment, and disclosure should be coordinated until a fix or mitigat
 
 In scope:
 
-- inbound authentication, per-key rate/concurrency isolation, and cross-caller access;
+- inbound authentication and bypass of the service-wide rate/concurrency limits;
 - secret exposure, unsafe logging, injection, request-boundary bypass, and upstream error leakage;
 - container, CI, dependency, Kubernetes, and public endpoint configuration owned by this project.
 
