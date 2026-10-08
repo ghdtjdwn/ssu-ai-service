@@ -15,7 +15,8 @@ boundary and centralizes input limits, concurrency control, and upstream error i
 
 ## Service boundary
 
-`ssu-ai-service` is a standalone B2B embedding API. The primary ssuAI chat path currently runs
+`ssu-ai-service` is a single-endpoint embedding proxy protected by one shared service key. It has no
+per-caller keys, quotas, or usage metering. The primary ssuAI chat path currently runs
 through `ssuAgent → ssuMCP` and does not depend on this service, so an embedding-gateway outage does
 not become a platform-wide chat outage. Production requests use the real Gemini API. Tests use an
 HTTP transport double only to verify the contract without network access or provider charges.
@@ -23,7 +24,7 @@ HTTP transport double only to verify the contract without network access or prov
 ```text
 authorized caller
   → X-API-Key gate
-  → per-key request and concurrency guard
+  → service-wide request and concurrency guard
   → FastAPI validation
   → Gemini embeddings API
   → bounded 768-dimensional response
@@ -52,8 +53,8 @@ documentation, or logs.
 - Missing or mismatched inbound credentials return 401; an unconfigured service key fails closed.
 - The Gemini key is sent only through the `Authorization` header, never in a URL.
 - Blank text is rejected and input is capped at 8,000 characters by default.
-- Each API key receives a 60-request/minute sliding window and four concurrent requests by default.
-  Limiter state stores only a SHA-256 identifier.
+- A 60-request/minute sliding window and four concurrent requests apply by default. There is one inbound
+  key, so these limits are service-wide. Limiter state holds a fixed identifier, not the key or a hash of it.
 - Raw Gemini errors and response bodies are never reflected to callers or logs.
 - `/health` and `/ready` never consume provider quota.
 - Runtime and development dependencies are exactly pinned; Dependabot, pip-audit, Gitleaks, and
@@ -71,9 +72,9 @@ service-wide limit. Add a shared limiter such as Redis before scaling horizontal
 | `SSUAI_GEMINI_API_KEY` | None | Required Gemini upstream credential |
 | `SSUAI_SERVICE_API_KEY` | None | Required inbound `X-API-Key` credential |
 | `SSUAI_MAX_TEXT_LENGTH` | `8000` | Maximum input characters |
-| `SSUAI_RATE_LIMIT_REQUESTS` | `60` | Requests per key in one window |
+| `SSUAI_RATE_LIMIT_REQUESTS` | `60` | Service-wide requests in one window |
 | `SSUAI_RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate-limit window |
-| `SSUAI_MAX_CONCURRENT_REQUESTS` | `4` | Concurrent requests per key |
+| `SSUAI_MAX_CONCURRENT_REQUESTS` | `4` | Service-wide concurrent requests |
 
 Invalid or non-positive protection settings fall back to safe values, while `/ready` returns 503 so
 the misconfigured instance receives no traffic.
