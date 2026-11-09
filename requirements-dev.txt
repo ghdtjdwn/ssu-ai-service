@@ -5,5 +5,5 @@ httpx2==2.16.0
 packaging==26.3
 pluggy==1.7.0
 Pygments==2.21.0
-pytest==9.1.1
+pytest==9.2.0
 truststore==0.10.5
