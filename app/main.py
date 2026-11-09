@@ -100,8 +100,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="SsuAI-B2B-Model-Server",
-    description="FastAPI-based AI serving gateway for RAG embeddings",
+    title="ssu-ai-service",
+    description=(
+        "Gemini embedding proxy: inbound API-key gate, service-wide rate and "
+        "concurrency limits, upstream error isolation"
+    ),
     version="1.1.0",
     lifespan=lifespan,
 )
