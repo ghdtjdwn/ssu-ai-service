@@ -42,3 +42,10 @@ updates:
     commit-message:
       prefix: chore(deps)
       include: scope
+    ignore:
+      # The runtime Python line is pinned to 3.11 together with CI's python-version;
+      # keep patch and digest updates, and move minors/majors deliberately with CI.
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
