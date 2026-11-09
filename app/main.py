@@ -120,6 +120,9 @@ SERVICE_API_KEY = os.getenv("SSUAI_SERVICE_API_KEY", "")
 # request belongs to the same process-local usage bucket. Keeping a fixed opaque
 # identifier avoids retaining or transforming credential material in limiter state.
 AUTHENTICATED_USAGE_KEY = b"authenticated-service"
+# Build identity. The Dockerfile copies its required VCS_REF build argument into this
+# variable, so a running container can report which commit it was built from.
+BUILD_SHA = os.getenv("SSUAI_BUILD_SHA") or None
 
 EMBEDDING_MODEL = "gemini-embedding-001"
 # gemini-embedding-001 is a Matryoshka (MRL) model whose vectors stay meaningful when
@@ -176,8 +179,13 @@ class EmbeddingResponse(BaseModel):
 @app.get("/health")
 def health_check():
     # Liveness stays independent of configuration while preserving the existing
-    # response field for callers; it never exposes the credential value.
-    return {"status": "healthy", "gemini_configured": bool(GEMINI_API_KEY)}
+    # response fields for callers; it never exposes the credential value. build_sha lets
+    # a deploy be confirmed from the public endpoint without access to the host.
+    return {
+        "status": "healthy",
+        "gemini_configured": bool(GEMINI_API_KEY),
+        "build_sha": BUILD_SHA,
+    }
 
 
 @app.get("/ready")
