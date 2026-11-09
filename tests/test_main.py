@@ -1,5 +1,7 @@
 import asyncio
+import logging
 
+import httpx
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -22,10 +24,12 @@ class _FakeResponse:
 
 class _FakeAsyncClient:
     """Async context manager standing in for the shared httpx.AsyncClient the
-    app opens in its lifespan. Returns a preset response from .post()."""
+    app opens in its lifespan. Returns a preset response from .post(), or raises
+    the given transport error instead."""
 
-    def __init__(self, response: _FakeResponse):
+    def __init__(self, response: _FakeResponse, error: Exception | None = None):
         self._response = response
+        self._error = error
         self.post_calls = 0
 
     async def __aenter__(self):
@@ -36,15 +40,19 @@ class _FakeAsyncClient:
 
     async def post(self, *args, **kwargs):
         self.post_calls += 1
+        if self._error is not None:
+            raise self._error
         return self._response
 
 
-def _patch_upstream(monkeypatch, response: _FakeResponse):
+def _patch_upstream(monkeypatch, response: _FakeResponse, error: Exception | None = None):
     monkeypatch.setattr(main, "SERVICE_API_KEY", "inbound-key")
     monkeypatch.setattr(main, "GEMINI_API_KEY", "upstream-key")
     # The lifespan builds the shared client via httpx.AsyncClient(...); patching
     # the constructor makes it yield the fake, exercising the real app.state wiring.
-    monkeypatch.setattr(main.httpx, "AsyncClient", lambda *a, **k: _FakeAsyncClient(response))
+    monkeypatch.setattr(
+        main.httpx, "AsyncClient", lambda *a, **k: _FakeAsyncClient(response, error)
+    )
 
 
 def test_health_endpoint():
@@ -254,3 +262,75 @@ def test_embeddings_malformed_upstream_returns_generic_502(monkeypatch):
     assert second_response.status_code == 502
     assert response.json()["detail"] == "embedding upstream error"
     assert "provider internals" not in response.text
+
+
+def test_openapi_title_matches_repository_name():
+    with TestClient(app) as client:
+        info = client.get("/openapi.json").json()["info"]
+    assert info["title"] == "ssu-ai-service"
+    assert info["version"] == main.app.version
+
+
+def test_embeddings_unreachable_upstream_returns_generic_503(monkeypatch, caplog):
+    # A transport error (DNS, connect, timeout) => 503 whose body and logs carry neither
+    # the exception text nor the upstream host.
+    _patch_upstream(
+        monkeypatch,
+        _FakeResponse(200),
+        error=httpx.ConnectError("boom generativelanguage.googleapis.com"),
+    )
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+        with TestClient(app) as client:
+            response = client.post(
+                "/v1/embeddings",
+                json={"text": "test"},
+                headers={"X-API-Key": "inbound-key"},
+            )
+    assert response.status_code == 503
+    assert response.json() == {"detail": "embedding upstream unreachable"}
+    assert "boom" not in response.text
+    assert "googleapis" not in response.text
+    assert "googleapis" not in caplog.text
+
+
+@pytest.mark.parametrize("upstream_status", [400, 401, 429, 500])
+def test_embeddings_non_200_upstream_returns_generic_502_and_logs_status_only(
+    monkeypatch, caplog, upstream_status
+):
+    _patch_upstream(
+        monkeypatch,
+        _FakeResponse(upstream_status, {"error": {"message": "quota blob"}}, text="quota blob"),
+    )
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+        with TestClient(app) as client:
+            response = client.post(
+                "/v1/embeddings",
+                json={"text": "test"},
+                headers={"X-API-Key": "inbound-key"},
+            )
+    assert response.status_code == 502
+    assert response.json() == {"detail": "embedding upstream error"}
+    assert "quota blob" not in response.text
+    assert f"gemini embeddings failed with status {upstream_status}" in caplog.text
+    assert "quota blob" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected_value", "expected_error"),
+    [
+        (None, 7, None),
+        ("12", 12, None),
+        ("abc", 7, "SSUAI_TEST_SETTING"),
+        ("0", 7, "SSUAI_TEST_SETTING"),
+        ("-5", 7, "SSUAI_TEST_SETTING"),
+    ],
+)
+def test_positive_int_setting_falls_back_and_reports_invalid_values(
+    monkeypatch, raw_value, expected_value, expected_error
+):
+    if raw_value is None:
+        monkeypatch.delenv("SSUAI_TEST_SETTING", raising=False)
+    else:
+        monkeypatch.setenv("SSUAI_TEST_SETTING", raw_value)
+
+    assert main._positive_int_setting("SSUAI_TEST_SETTING", 7) == (expected_value, expected_error)
