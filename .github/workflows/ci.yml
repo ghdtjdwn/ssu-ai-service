@@ -3,9 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
-    # Ignore ArgoCD Image Updater write-back commits (deploy/charts/*/values.yaml)
-    # and docs so they never rebuild the image. Without this the write-back would
-    # loop forever: write-back -> CI -> new image -> write-back -> ...
+    # Docs and deploy/ changes never rebuild the image. The server-side deploy
+    # timer takes the newest main commit that has a sha-<commit> image on GHCR,
+    # so a commit without an image is simply skipped, not deployed.
     paths-ignore:
       - 'deploy/**'
       - 'docs/**'
@@ -47,7 +47,7 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # The prod node is ARM64 (Ampere A1), so build for linux/arm64 like ssuMCP/ssuAgent.
+      # The prod VM is ARM64 (Ampere A1), so build for linux/arm64 like ssuMCP/ssuAgent.
       - name: Set up QEMU (arm64 emulation)
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
@@ -65,8 +65,8 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/ssu-ai-service
-          # sha-<full-40-hex> is what the ArgoCD Image Updater allow-tags regexp pins to;
-          # latest keeps the values.yaml placeholder pullable on the first sync.
+          # sha-<full-40-hex> is the tag the server-side deploy timer looks up for each
+          # main commit and pins by digest; latest is kept for convenience pulls only.
           tags: |
             type=sha,format=long
             type=raw,value=latest

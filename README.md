@@ -74,10 +74,9 @@ curl https://ssu-ai-service.duckdns.org/v1/embeddings \
 - `/health`와 `/ready`는 비용이 드는 upstream probe를 수행하지 않는다.
 - runtime/dev dependency는 exact version이고 CI가 `pip install --no-deps` 후 `pip check`로 lock 완전성을
   확인한다. Dependabot(pip, GitHub Actions, Docker 베이스 이미지)·pip-audit·Gitleaks·CodeQL을 CI에서 실행한다.
-- Kubernetes Secret은 필수 참조다. 회전 시 chart의 `secretRef.revision`을 함께 올려 pod가 새 env 값을
-  읽도록 한다.
+- 두 credential은 저장소에 없는 서버 측 환경 파일로 컨테이너에 주입하며, 교체는 서버 운영 절차로만 한다.
 
-현재 replica는 1개이므로 process-local limiter가 서비스 전체 한도다. 여러 replica로 확장할 때는 Redis
+운영 컨테이너는 1개이므로 process-local limiter가 서비스 전체 한도다. 여러 인스턴스로 확장할 때는 Redis
 같은 공유 limiter를 먼저 도입해야 한다.
 
 ## 설정
@@ -111,26 +110,35 @@ pytest -q
 python -m pip install pip-audit==2.10.1
 pip-audit -r requirements-dev.txt
 docker build --build-arg VCS_REF=$(git rev-parse HEAD) -t ssu-ai-service .
-helm lint deploy/charts/ssu-ai-service
 ```
 
-`VCS_REF`는 필수다. Dockerfile이 이 값을 OCI revision label로 기록하고, 커밋마다 이미지 생성 시각을 갱신해
-ArgoCD Image Updater가 tag를 정렬할 수 있게 한다([2026-09-03 기록](docs/deployment-troubleshooting.md#2026-09-03-cached-image-timestamp-stalled-an-automated-rollout)).
+`VCS_REF`는 필수다. Dockerfile이 이 값을 OCI revision label과 `SSUAI_BUILD_SHA` 환경 변수로 기록하고
+`/health`가 `build_sha`로 돌려준다. 이 인자가 생긴 경위는 [2026-09-03 기록](docs/deployment-troubleshooting.md#2026-09-03-cached-image-timestamp-stalled-an-automated-rollout)에
+있다.
 
 테스트는 인증 fail-closed, liveness/readiness 분리, 설정 파서, 입력 경계, rate/concurrency 제한, 정상 768차원
 응답, upstream 네트워크 오류(503)·비 200 응답(502)·잘못된 형식(502)의 비반사를 검증한다.
 
 ## 배포
 
-`main` push 후 CI가 test gate를 통과한 ARM64 이미지를 GHCR에 게시한다. ArgoCD Image Updater가
-`sha-<40hex>` tag를 Git에 기록하고 ArgoCD가 `ssuai-prod` namespace로 동기화한다. 컨테이너는 non-root,
-읽기 전용 root filesystem, capability drop, privilege-escalation 차단, seccomp 설정으로 실행된다.
+`main` push 후 CI가 test gate를 통과한 ARM64 이미지를 `ghcr.io/ghdtjdwn/ssu-ai-service:sha-<40hex>`로
+게시한다. 운영 환경은 단일 ARM64 VM(1 vCPU, 약 6GB RAM)이며 서비스는 Docker Compose로 실행되고 앞단의 Caddy
+하나가 TLS를 종료한다. 서버의 systemd 타이머가 15분마다 `main` 최근 커밋 중 GHCR에 `sha-<커밋>` 태그가
+있는 가장 최신 것을 골라 digest를 고정해 pull·교체하고, 공개 주소의 `GET /ready`가 200이 아니면 이전
+이미지로 되돌린다. 머지 후 보통 15~16분 안에 반영되며, 반영된 커밋은 `GET /health`의 `build_sha`로
+확인한다. 컨테이너는 1개, 메모리 상한 256MiB, non-root 사용자로 실행된다.
 
-- Helm chart와 ArgoCD Application: [`deploy/`](deploy/)
-- production 절차와 실패 분석: [`docs/deployment-troubleshooting.md`](docs/deployment-troubleshooting.md)
+2026-10-15까지는 k3s + ArgoCD + Image Updater 구성이었고, 무료 한도 안의 1 OCPU / 6GB 서버 한 대에서 모든
+개인 서비스를 돌리기 위해 전환했다.
+
+- 현재 배포 경로와 반영 확인 순서: [`deploy/README.md`](deploy/README.md)
+- 전환 결정과 trade-off: [ADR 0001](docs/adr/0001-single-vm-docker-compose-deploy.md)
+- 폐기된 Helm chart·ArgoCD Application(참고용): [`deploy/archive/k3s/`](deploy/archive/k3s/)
+- k3s/ArgoCD 시절 배포 장애 분석: [`docs/deployment-troubleshooting.md`](docs/deployment-troubleshooting.md)
 - 비공개 취약점 제보 범위와 절차: [`.github/SECURITY.md`](.github/SECURITY.md)
 
-실제 Secret 교체, pod 재시작, rollout은 production 변경이므로 승인된 운영 절차에서만 수행한다.
+컨테이너 실행 정의(Compose, 타이머, 비밀값)는 비공개 인프라 저장소에서 관리한다. 비밀값 교체와 수동
+재시작은 production 변경이므로 서버 운영 절차에서만 수행한다.
 
 ## 라이선스
 

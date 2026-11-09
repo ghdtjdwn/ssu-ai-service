@@ -76,11 +76,11 @@ documentation, or logs. The production instance serves its OpenAPI documentation
 - Runtime and development dependencies are exactly pinned, and CI installs with `pip install --no-deps`
   followed by `pip check` so an incomplete lock fails the build. Dependabot (pip, GitHub Actions, Docker
   base image), pip-audit, Gitleaks, and CodeQL run in CI.
-- Kubernetes Secret references are mandatory. A rotation increments `secretRef.revision` so pods
-  restart and read the new `envFrom` values.
+- Both credentials are injected from a server-side environment file that is not in this repository,
+  and rotation happens only through the server operations procedure.
 
-The production deployment currently has one replica, so the process-local limiter is also the
-service-wide limit. Add a shared limiter such as Redis before scaling horizontally.
+Production runs one container, so the process-local limiter is also the service-wide limit. Add a
+shared limiter such as Redis before scaling horizontally.
 
 ## Configuration
 
@@ -113,12 +113,12 @@ pytest -q
 python -m pip install pip-audit==2.10.1
 pip-audit -r requirements-dev.txt
 docker build --build-arg VCS_REF=$(git rev-parse HEAD) -t ssu-ai-service .
-helm lint deploy/charts/ssu-ai-service
 ```
 
-`VCS_REF` is required. The Dockerfile records it as the OCI revision label and refreshes the image
-creation time for every commit so ArgoCD Image Updater can order the tags
-([2026-09-03 entry](docs/deployment-troubleshooting.md#2026-09-03-cached-image-timestamp-stalled-an-automated-rollout)).
+`VCS_REF` is required. The Dockerfile records it as the OCI revision label and as the
+`SSUAI_BUILD_SHA` environment variable, which `/health` returns as `build_sha`. The
+[2026-09-03 entry](docs/deployment-troubleshooting.md#2026-09-03-cached-image-timestamp-stalled-an-automated-rollout)
+explains why the argument exists.
 
 The test suite covers fail-closed authentication, liveness/readiness separation, the settings parser,
 input boundaries, rate and concurrency limits, a valid 768-dimensional response, and redaction of
@@ -126,17 +126,26 @@ upstream network errors (503), non-200 responses (502), and malformed responses 
 
 ## Deployment
 
-After a `main` push, CI publishes an ARM64 GHCR image only after tests pass. ArgoCD Image Updater
-writes the `sha-<40hex>` tag to Git, and ArgoCD syncs it into the `ssuai-prod` namespace. The
-container runs non-root with a read-only root filesystem, dropped capabilities, blocked privilege
-escalation, and seccomp.
+After a `main` push, CI publishes an ARM64 image as `ghcr.io/ghdtjdwn/ssu-ai-service:sha-<40hex>`
+only after tests pass. Production is a single ARM64 VM (1 vCPU, about 6GB RAM) where the service runs
+under Docker Compose behind one Caddy instance that terminates TLS. A systemd timer on the server runs
+every 15 minutes, picks the newest `main` commit that has a `sha-<commit>` tag on GHCR, pins its
+digest, pulls and replaces the container, and rolls back to the previous image if the public
+`GET /ready` does not return 200. A merge usually lands within 15 to 16 minutes, and the deployed
+commit is visible as `build_sha` in `GET /health`. The service runs as one container with a 256MiB
+memory limit and a non-root user.
 
-- Helm chart and ArgoCD Application: [`deploy/`](deploy/)
-- Production procedure and failure analysis: [`docs/deployment-troubleshooting.md`](docs/deployment-troubleshooting.md)
+Until 2026-10-15 the stack was k3s + ArgoCD + Image Updater. It was replaced so that every personal
+service fits on one 1 OCPU / 6GB server inside the free tier.
+
+- Current deployment path and what to check when a deploy did not land: [`deploy/README.md`](deploy/README.md)
+- Decision record and trade-offs: [ADR 0001](docs/adr/0001-single-vm-docker-compose-deploy.md)
+- Retired Helm chart and ArgoCD Application (reference only): [`deploy/archive/k3s/`](deploy/archive/k3s/)
+- Deployment failure analysis from the k3s/ArgoCD era: [`docs/deployment-troubleshooting.md`](docs/deployment-troubleshooting.md)
 - Private vulnerability reporting scope and process: [`.github/SECURITY.md`](.github/SECURITY.md)
 
-Secret rotation, pod restarts, and rollouts are production changes and require the approved
-operations procedure.
+The runtime definition (Compose, timer, secrets) lives in a private infrastructure repository. Secret
+rotation and manual restarts are production changes and follow the server operations procedure.
 
 ## License
 
