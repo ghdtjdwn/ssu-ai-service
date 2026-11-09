@@ -4,8 +4,9 @@ import os
 import secrets
 import time
 from collections import defaultdict, deque
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Annotated, AsyncIterator
+from typing import Annotated
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
@@ -26,12 +27,8 @@ def _positive_int_setting(name: str, default: int) -> tuple[int, str | None]:
     return value, None
 
 
-MAX_TEXT_LENGTH, _max_text_error = _positive_int_setting(
-    "SSUAI_MAX_TEXT_LENGTH", 8_000
-)
-RATE_LIMIT_REQUESTS, _rate_requests_error = _positive_int_setting(
-    "SSUAI_RATE_LIMIT_REQUESTS", 60
-)
+MAX_TEXT_LENGTH, _max_text_error = _positive_int_setting("SSUAI_MAX_TEXT_LENGTH", 8_000)
+RATE_LIMIT_REQUESTS, _rate_requests_error = _positive_int_setting("SSUAI_RATE_LIMIT_REQUESTS", 60)
 RATE_LIMIT_WINDOW_SECONDS, _rate_window_error = _positive_int_setting(
     "SSUAI_RATE_LIMIT_WINDOW_SECONDS", 60
 )
@@ -216,9 +213,9 @@ async def get_embedding(request: EmbeddingRequest, raw_request: Request):
         # Do not echo the exception (may carry the upstream URL/host).
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "embedding upstream unreachable"
-        )
+        ) from None
 
-    if response.status_code != 200:
+    if response.status_code != status.HTTP_200_OK:
         # Log only the status for debugging; the upstream body can contain provider
         # internals and must not reach either caller responses or application logs.
         log.warning("gemini embeddings failed with status %s", response.status_code)
@@ -229,5 +226,5 @@ async def get_embedding(request: EmbeddingRequest, raw_request: Request):
     except (KeyError, IndexError, TypeError, ValueError):
         # Record only the malformed shape signal and keep the raw body out of logs.
         log.warning("gemini embeddings returned a malformed response")
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "embedding upstream error")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "embedding upstream error") from None
     return EmbeddingResponse(embedding=embedding, dimension=len(embedding))
