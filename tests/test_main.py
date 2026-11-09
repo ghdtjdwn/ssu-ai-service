@@ -61,6 +61,21 @@ def test_health_endpoint():
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
     assert "gemini_configured" in response.json()
+    assert "build_sha" in response.json()
+
+
+def test_health_reports_build_sha_from_image_environment(monkeypatch):
+    monkeypatch.setattr(main, "BUILD_SHA", "0123456789abcdef0123456789abcdef01234567")
+    with TestClient(app) as client:
+        response = client.get("/health")
+    assert response.json()["build_sha"] == "0123456789abcdef0123456789abcdef01234567"
+
+
+def test_health_build_sha_is_null_outside_a_built_image(monkeypatch):
+    monkeypatch.setattr(main, "BUILD_SHA", None)
+    with TestClient(app) as client:
+        response = client.get("/health")
+    assert response.json()["build_sha"] is None
 
 
 def test_readiness_requires_both_credentials_without_calling_upstream(monkeypatch):

@@ -48,7 +48,7 @@ authorized caller
 
 | 메서드 | 경로 | 인증 | 계약 |
 | --- | --- | --- | --- |
-| `GET` | `/health` | 없음 | 프로세스 liveness. upstream을 호출하지 않는다. |
+| `GET` | `/health` | 없음 | 프로세스 liveness. upstream을 호출하지 않고, 실행 중인 이미지의 커밋을 `build_sha`로 보고한다. |
 | `GET` | `/ready` | 없음 | 필수 key와 보호 설정을 확인한다. upstream을 호출하지 않는다. |
 | `POST` | `/v1/embeddings` | `X-API-Key` | `{"text":"..."}`를 768차원 embedding으로 변환한다. |
 

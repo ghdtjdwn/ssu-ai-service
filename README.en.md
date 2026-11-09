@@ -48,7 +48,7 @@ authorized caller
 
 | Method | Path | Authentication | Contract |
 | --- | --- | --- | --- |
-| `GET` | `/health` | None | Process liveness without an upstream call. |
+| `GET` | `/health` | None | Process liveness without an upstream call; reports the commit of the running image as `build_sha`. |
 | `GET` | `/ready` | None | Required-key and protection-config readiness without an upstream call. |
 | `POST` | `/v1/embeddings` | `X-API-Key` | Converts `{"text":"..."}` into a 768-dimensional embedding. |
 
