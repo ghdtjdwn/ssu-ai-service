@@ -77,6 +77,6 @@ The runtime stage now consumes the commit SHA through a build argument in an exe
 
 Future deployment verification must compare the image config creation time as well as the tag and registry publication time. A green image-publish job alone does not prove that a `newest-build` rollout candidate can be ordered.
 
-### Remaining risk and review questions
+### Remaining risk
 
-Image Updater still depends on registry metadata and its polling loop; the Git write-back remains the authoritative signal that a revision was selected. This verification environment had no production cluster context, so the running pod image and ArgoCD `Synced/Healthy` state were not observed directly. During an operational review, verify why a changed OCI label did not change the image build timestamp, why a Git SHA cannot use alphabetical ordering, and how a commit-scoped cache-busting step preserves most BuildKit cache value.
+Image Updater still depends on registry metadata and its polling loop; the Git write-back remains the authoritative signal that a revision was selected. Deployment verification should compare image-config creation time, not only tag or push time.
