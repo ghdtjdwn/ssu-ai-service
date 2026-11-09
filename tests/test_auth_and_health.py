@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-import app.main as main
+from app import main
 from app.main import app
 
 
@@ -235,7 +235,9 @@ def test_usage_guard_rejects_per_key_concurrency_and_releases_slot(monkeypatch):
 def test_embeddings_malformed_upstream_returns_generic_502(monkeypatch):
     # Upstream replies 200 but with an unexpected shape => generic 502, no body reflected.
     monkeypatch.setattr(main, "MAX_CONCURRENT_REQUESTS", 1)
-    _patch_upstream(monkeypatch, _FakeResponse(200, {"unexpected": "shape"}, text="provider internals"))
+    _patch_upstream(
+        monkeypatch, _FakeResponse(200, {"unexpected": "shape"}, text="provider internals")
+    )
     with TestClient(app) as client:
         response = client.post(
             "/v1/embeddings",

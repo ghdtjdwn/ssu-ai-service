@@ -25,7 +25,15 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install --no-cache-dir -r requirements-dev.txt
+        # --no-deps + pip check fails the build when requirements*.txt stops being a
+        # complete lock (a transitive dependency without an exact pin).
+        run: |
+          pip install --no-cache-dir --no-deps -r requirements-dev.txt
+          pip check
+      - name: Lint and format check
+        run: |
+          ruff check .
+          ruff format --check .
       - name: Run tests
         run: pytest -q
 
