@@ -14,7 +14,7 @@ vulnerability** form from this repository's Security tab. If the form is unavail
 
 Include the affected commit, expected and actual behavior, impact, and the smallest sanitized
 reproduction you can provide. Never include a real Gemini key, caller API key, authorization header,
-request text containing personal data, Kubernetes Secret, or production response body.
+request text containing personal data, server-side environment file contents, or production response body.
 
 No bug-bounty payment or response-time SLA is offered. Reports will be triaged against the current
 code and deployment, and disclosure should be coordinated until a fix or mitigation is available.
@@ -25,7 +25,7 @@ In scope:
 
 - inbound authentication and bypass of the service-wide rate/concurrency limits;
 - secret exposure, unsafe logging, injection, request-boundary bypass, and upstream error leakage;
-- container, CI, dependency, Kubernetes, and public endpoint configuration owned by this project.
+- container image, CI, dependency, and public endpoint configuration owned by this project.
 
 Google APIs, cloud providers, and other third-party services are not controlled by this project.
 Please report integration behavior that creates a vulnerability in this code without testing a

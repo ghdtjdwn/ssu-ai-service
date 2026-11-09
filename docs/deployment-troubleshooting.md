@@ -1,5 +1,12 @@
 # Deployment troubleshooting
 
+Both entries below are from the k3s + ArgoCD + Image Updater period (2026-07-01 to 2026-10-15) and are kept as
+written. That stack was retired on 2026-10-15; see [ADR 0001](adr/0001-single-vm-docker-compose-deploy.md)
+and the current path in [`deploy/README.md`](../deploy/README.md). Since then the server picks the newest
+`main` commit that has a `sha-<commit>` image, pins its digest, and rolls back automatically when the public
+`/ready` check fails, so the ArgoCD state and Image Updater ordering failures described here cannot recur in
+that form. Deployment verification now reads `build_sha` from `GET /health`.
+
 ## 2026-07-15: stale ArgoCD owner blocked the readiness rollout
 
 ### Context and impact
@@ -77,6 +84,8 @@ The runtime stage now consumes the commit SHA through a build argument in an exe
 
 Future deployment verification must compare the image config creation time as well as the tag and registry publication time. A green image-publish job alone does not prove that a `newest-build` rollout candidate can be ordered.
 
-### Remaining risk
+### Remaining risk (as of 2026-09-03)
 
 Image Updater still depends on registry metadata and its polling loop; the Git write-back remains the authoritative signal that a revision was selected. Deployment verification should compare image-config creation time, not only tag or push time.
+
+Since 2026-10-15 this risk no longer applies: the replacement path selects by commit order and pins the image digest, so image creation time is not used. The `VCS_REF` build argument stays because `/health` now reports it as `build_sha`.
