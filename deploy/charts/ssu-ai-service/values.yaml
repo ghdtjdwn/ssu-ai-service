@@ -59,15 +59,16 @@ probes:
     periodSeconds: 30
     timeoutSeconds: 5
     failureThreshold: 5
-# The multi-stage Dockerfile uses a digest-pinned Python 3.11 Alpine image and
-# copies them to /usr/local, then runs uvicorn as the non-root `app` user (USER app),
-# so runAsNonRoot is enforced here.
+# The multi-stage Dockerfile uses a digest-pinned Python 3.11 Alpine image, copies the
+# installed packages to /usr/local, and runs uvicorn as the non-root `app` user
+# (USER app), so runAsNonRoot is enforced here. The process writes nothing to disk
+# (verified with `docker run --read-only`), so the root filesystem is read-only too.
 containerSecurityContext:
   runAsNonRoot: true
   runAsUser: 10001
   runAsGroup: 10001
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
     - ALL
