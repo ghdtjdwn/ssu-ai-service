@@ -1,10 +1,10 @@
 -r requirements.txt
 iniconfig==2.3.1
-httpcore2==2.16.0
-httpx2==2.16.0
+httpcore2==2.16.2
+httpx2==2.16.2
 packaging==26.3
 pluggy==1.7.0
 Pygments==2.21.0
 pytest==9.2.0
-ruff==0.17.5
+ruff==0.17.6
 truststore==0.10.5
