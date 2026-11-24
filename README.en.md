@@ -74,8 +74,8 @@ documentation, or logs. The production instance serves its OpenAPI documentation
   503, non-200 and malformed responses become 502, and only the status code is logged.
 - `/health` and `/ready` never consume provider quota.
 - Runtime and development dependencies are exactly pinned, and CI installs with `pip install --no-deps`
-  followed by `pip check` so an incomplete lock fails the build. Dependabot (pip, GitHub Actions, Docker
-  base image), pip-audit, Gitleaks, and CodeQL run in CI.
+  followed by `pip check` so an incomplete lock fails the build. pip-audit, Gitleaks, and CodeQL run
+  in CI.
 - Both credentials are injected from a server-side environment file that is not in this repository,
   and rotation happens only through the server operations procedure.
 

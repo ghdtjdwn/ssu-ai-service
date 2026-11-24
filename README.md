@@ -73,7 +73,7 @@ curl https://ssu-ai-service.duckdns.org/v1/embeddings \
   잘못된 형식은 502로 바꾸고 로그에는 상태 코드만 남긴다.
 - `/health`와 `/ready`는 비용이 드는 upstream probe를 수행하지 않는다.
 - runtime/dev dependency는 exact version이고 CI가 `pip install --no-deps` 후 `pip check`로 lock 완전성을
-  확인한다. Dependabot(pip, GitHub Actions, Docker 베이스 이미지)·pip-audit·Gitleaks·CodeQL을 CI에서 실행한다.
+  확인한다. pip-audit·Gitleaks·CodeQL을 CI에서 실행한다.
 - 두 credential은 저장소에 없는 서버 측 환경 파일로 컨테이너에 주입하며, 교체는 서버 운영 절차로만 한다.
 
 운영 컨테이너는 1개이므로 process-local limiter가 서비스 전체 한도다. 여러 인스턴스로 확장할 때는 Redis
